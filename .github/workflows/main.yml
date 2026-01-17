@@ -1,0 +1,30 @@
+name: Criar App com Espaço Extra
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    # Seleciona uma máquina Windows oficial do GitHub
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Liberar espaço no Disco C
+        shell: pwsh
+        run: |
+          Write-Host "Espaço antes da limpeza:"
+          Get-PSDrive C | Select-Object Size, Free
+          
+          # Remove pacotes grandes que o GitHub traz por padrão
+          rm -Recurse -Force "C:\Microsoft\AndroidNDK" -ErrorAction SilentlyContinue
+          rm -Recurse -Force "C:\Microsoft\AndroidSDK" -ErrorAction SilentlyContinue
+          rm -Recurse -Force "C:\hostedtoolcache\windows\CodeQL" -ErrorAction SilentlyContinue
+          
+          Write-Host "Espaço após a limpeza:"
+          Get-PSDrive C | Select-Object Size, Free
+
+      - name: Iniciar Criação do App
+        run: |
+          echo "Iniciando o build do seu app aqui..."
+          # Adicione seus comandos de build (npm install, dotnet build, etc.)
