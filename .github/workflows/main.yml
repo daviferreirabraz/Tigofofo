@@ -1,51 +1,65 @@
-name: Windows_RDP_Fixed
-on: workflow_dispatch
+name: Windows Cloud PC - UE5 Stable Attempt
+
+on:
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 360
-
     steps:
-      - name: Liberar espaço no Disco C
-        shell: pwsh
+      - name: Liberar Espaço em Disco (Crucial)
+        shell: powershell
         run: |
-          rm -Recurse -Force "C:\Microsoft\AndroidNDK" -ErrorAction SilentlyContinue
-          rm -Recurse -Force "C:\Microsoft\AndroidSDK" -ErrorAction SilentlyContinue
-          rm -Recurse -Force "C:\hostedtoolcache\windows\CodeQL" -ErrorAction SilentlyContinue
-          Get-PSDrive C | Select-Object Size, Free
+          Write-Host "Limpando arquivos desnecessários para ganhar espaço..."
+          # Remove SDKs pesados que o GitHub instala por padrão
+          Remove-Item -Recurse -Force "C:\Microsoft\AndroidNDK" -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force "C:\Microsoft\AndroidSDK" -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force "C:\hostedtoolcache\windows\dotnet" -ErrorAction SilentlyContinue
+          Write-Host "Limpeza concluída."
 
-      - name: Baixar Ngrok via Chocolatey
-        # Usar o Chocolatey (gerenciador de pacotes) é mais confiável que baixar o zip manual
-        run: choco install ngrok -y
-
-      - name: Autenticar Ngrok
-        run: ngrok authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
-
-      - name: Configurar Usuário e Senha
+      - name: Instalar Tailscale
+        shell: powershell
         run: |
-          net user runneradmin "SenhaForte789!" /add
-          net localgroup administrators runneradmin /add
+          Invoke-WebRequest -Uri https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe -OutFile tailscale-setup.exe
+          Start-Process -FilePath "tailscale-setup.exe" -ArgumentList "/quiet", "/norestart" -Wait
 
-      - name: Ativar RDP
+      - name: Conectar ao Tailscale
+        shell: powershell
+        env:
+          TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
         run: |
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=$env:TS_AUTHKEY --hostname="ue5-pc-corrigido" --unattended
 
-      - name: Abrir Túnel e Mostrar IP
-        shell: pwsh
+      - name: Configurar Usuario e RDP
+        shell: powershell
         run: |
-          # Inicia o ngrok em segundo plano
-          Start-Process ngrok -ArgumentList "tcp 3389"
-          Start-Sleep -Seconds 15
-          # Busca o IP gerado
-          $tunnels = Invoke-RestMethod -Uri http://localhost:4040/api/tunnels
-          $address = $tunnels.tunnels.public_url
-          Write-Host "------------------------------------------"
-          Write-Host "CONECTE NO RDP USANDO ESTE ENDEREÇO:"
-          Write-Host $address
-          Write-Host "------------------------------------------"
+          # Criando usuário admin novo
+          $Password = ConvertTo-SecureString "SenhaUE5@2026" -AsPlainText -Force
+          New-LocalUser "ue5admin" -Password $Password
+          Add-LocalGroupMember -Group "Administrators" -Member "ue5admin"
+          
+          # Desativa NLA para não dar erro no Windows App
+          $ts = Get-WmiObject -Class "Win32_TSGeneralSetting" -Namespace root\cimv2\terminalservices -Filter "TerminalName='RDP-Tcp'"
+          $ts.SetUserAuthenticationRequired(0)
+          
+          # Desativa Firewall
+          Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
 
-      - name: Manter Ligada
-        run: Start-Sleep -Seconds 21600
+      - name: Instalar Epic Games Launcher
+        shell: powershell
+        run: |
+          Write-Host "Instalando Epic Games Launcher via Winget..."
+          # O --location ajuda a garantir onde será instalado
+          winget install --id EpicGames.EpicGamesLauncher --silent --accept-package-agreements --accept-source-agreements
+
+      - name: Mostrar IP Final
+        shell: powershell
+        run: |
+          $ip = & "C:\Program Files\Tailscale\tailscale.exe" ip -4
+          Write-Host "-------------------------------------------"
+          Write-Host "CONECTE PELO WINDOWS APP"
+          Write-Host "IP: $ip"
+          Write-Host "USUARIO: ue5admin"
+          Write-Host "SENHA: SenhaUE5@2026"
+          Write-Host "-------------------------------------------"
+          Start-Sleep -Seconds 21600
