@@ -1,0 +1,12 @@
+{
+  "name": "Minha VM de 4GB-8GB",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "features": {
+    "ghcr.io/devcontainers/features/desktop-lite:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-ceintl.vscode-language-pack-pt-BR"]
+    }
+  }
+}
