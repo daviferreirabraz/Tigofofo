@@ -1,5 +1,73 @@
-app_config:
-  name: "Nware"
-  path: "C:\caminho\Para\Nware.exe"
-  duration_minutes: 60
-  action_after_timeout: "taskkill"
+name: Windows Cloud PC - Nware & UE5
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Liberar Espaço em Disco
+        shell: powershell
+        run: |
+          Write-Host "Limpando arquivos desnecessários..."
+          Remove-Item -Recurse -Force "C:\Microsoft\AndroidNDK" -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force "C:\Microsoft\AndroidSDK" -ErrorAction SilentlyContinue
+          Write-Host "Limpeza concluída."
+
+      - name: Instalar Tailscale
+        shell: powershell
+        run: |
+          Invoke-WebRequest -Uri https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe -OutFile tailscale-setup.exe
+          Start-Process -FilePath "tailscale-setup.exe" -ArgumentList "/quiet", "/norestart" -Wait
+
+      - name: Conectar ao Tailscale
+        shell: powershell
+        env:
+          TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
+        run: |
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=$env:TS_AUTHKEY --hostname="nware-pc" --unattended
+
+      - name: Configurar Usuario e RDP
+        shell: powershell
+        run: |
+          $Password = ConvertTo-SecureString "SenhaNware@2026" -AsPlainText -Force
+          New-LocalUser "nwareadmin" -Password $Password
+          Add-LocalGroupMember -Group "Administrators" -Member "nwareadmin"
+          (Get-WmiObject -Class "Win32_TSGeneralSetting" -Namespace root\cimv2\terminalservices -Filter "TerminalName='RDP-Tcp'").SetUserAuthenticationRequired(0)
+          Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
+
+      - name: Instalar Nware e Epic Games
+        shell: powershell
+        run: |
+          Write-Host "Instalando Nware e Epic Games via Winget..."
+          winget install --id Nware.Nware --silent --accept-package-agreements --accept-source-agreements
+          winget install --id EpicGames.EpicGamesLauncher --silent --accept-package-agreements --accept-source-agreements
+
+      - name: Iniciar Nware com Tempo Limitado
+        shell: powershell
+        run: |
+          $timeoutSeconds = 21600 # 6 horas (limite máximo do GitHub Actions)
+          
+          # Tenta localizar o executável do Nware (caminho padrão do Winget)
+          $nwarePath = "C:\Program Files\Nware\Nware.exe" 
+          
+          if (Test-Path $nwarePath) {
+              Write-Host "Iniciando Nware..."
+              Start-Process -FilePath $nwarePath
+          } else {
+              Write-Host "Aviso: Nware não encontrado no caminho padrão, verifique a instalação."
+          }
+
+          $ip = & "C:\Program Files\Tailscale\tailscale.exe" ip -4
+          Write-Host "-------------------------------------------"
+          Write-Host "CONECTE PELO WINDOWS APP (RDP)"
+          Write-Host "IP: $ip"
+          Write-Host "USUARIO: nwareadmin"
+          Write-Host "SENHA: SenhaNware@2026"
+          Write-Host "O PC desligará em 6 horas."
+          Write-Host "-------------------------------------------"
+          
+          # Mantém a VM viva e fecha o Nware ao final
+          Start-Sleep -Seconds $timeoutSeconds
+          Stop-Process -Name "Nware" -Force -ErrorAction SilentlyContinue
