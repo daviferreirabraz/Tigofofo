@@ -1,5 +1,5 @@
 app_config:
   name: "Nware"
-  path: "C:\Caminho\Para\Nware.exe"
+  path: "C:\caminho\Para\Nware.exe"
   duration_minutes: 60
   action_after_timeout: "taskkill"
