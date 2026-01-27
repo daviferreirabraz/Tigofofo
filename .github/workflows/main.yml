@@ -1,38 +1,24 @@
-name: Windows 16GB - Windows App
-on: 
-  workflow_dispatch:
-
+name: PC Windows 16GB
+on: workflow_dispatch
 jobs:
-  run-pc:
-    runs-on: windows-latest # Ativa a máquina de 16GB RAM
+  build:
+    runs-on: windows-latest
     steps:
-      - name: Instalar e Ligar Tailscale
+      - name: Ligar Tailscale
         shell: powershell
         run: |
-          # Baixa e instala o Tailscale silenciosamente
-          $url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe"
-          Invoke-WebRequest -Uri $url -OutFile "tailscale-setup.exe"
-          Start-Process -FilePath ".\tailscale-setup.exe" -ArgumentList "/S" -Wait
-          
-          # Tenta conectar. Se falhar aqui, o erro é na sua AUTHKEY
-          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --accept-routes
-
-      - name: Configurar Usuario e Remote Desktop
+          iex ((New-Object System.Net.WebClient).DownloadString('https://tailscale.com/install.ps1'))
+          tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --accept-routes
+      - name: Criar Usuario PC
         shell: powershell
         run: |
-          # Define a senha (mude se quiser)
-          $password = ConvertTo-SecureString "Suasenha123!" -AsPlainText -Force
-          net user runneradmin Suasenha123!
-          
-          # Habilita o RDP (Área de Trabalho Remota) no Windows
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-
+          $pass = ConvertTo-SecureString "Suasenha123!" -AsPlainText -Force
+          New-LocalUser "runneradmin" -Password $pass -Description "PC User"
+          Add-LocalGroupMember -Group "Administrators" -Member "runneradmin"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "runneradmin"
       - name: Manter Ativo
         shell: powershell
         run: |
-          Write-Host "PC ONLINE!"
-          Write-Host "IP: Pegue no app Tailscale"
-          Write-Host "User: runneradmin / Senha: Suasenha123!"
-          # Loop para a VM não desligar
+          echo "Conecte no Windows App com o IP do Tailscale"
+          echo "User: runneradmin | Senha: Suasenha123!"
           while($true) { Start-Sleep -Seconds 60 }
