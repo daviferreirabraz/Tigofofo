@@ -1,39 +1,28 @@
-name: VM 16GB Grafica VNC
+name: Windows 16GB para Windows App
 on: 
   workflow_dispatch:
 
 jobs:
-  start-vnc:
-    runs-on: ubuntu-latest
+  run-windows:
+    runs-on: windows-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Instalar Interface Grafica e VNC
+      - name: Conectar Tailscale
+        shell: powershell
         run: |
-          sudo apt update
-          # Instala o desktop e o servidor VNC
-          sudo apt install -y xfce4 xfce4-goodies tightvncserver
-          
-          # Configura a senha do VNC (será '123456')
-          mkdir -p ~/.vnc
-          echo "123456" | vncpasswd -f > ~/.vnc/passwd
-          chmod 600 ~/.vnc/passwd
-          
-          # Configura a senha do usuario runner (para SSH se precisar)
-          echo "runner:123456" | sudo chpasswd
-          
-          # Inicia o servidor VNC na porta 5901
-          vncserver :1 -geometry 1280x720 -depth 24
+          iex ((New-Object System.Net.WebClient).DownloadString('https://tailscale.com/install.ps1'))
+          tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --accept-routes
 
-      - name: Conectar ao Tailscale
-        uses: tailscale/github-action@v2
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-
-      - name: Manter Ativa
+      - name: Configurar Acesso
+        shell: powershell
         run: |
-          echo "IP da VM: $(tailscale ip -4)"
-          echo "Conecte no VNC Viewer usando: IP:1"
-          echo "Senha: 123456"
-          while true; do sleep 60; done
+          # Define a senha do utilizador do Windows App
+          net user runneradmin Suasenha123!
+          # Garante que o Acesso Remoto está ligado
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+      - name: Manter PC Ligado
+        shell: powershell
+        run: |
+          echo "PC PRONTO! Abra o Windows App no celular e use o IP do Tailscale."
+          while($true) { Start-Sleep -Seconds 60 }
