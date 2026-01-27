@@ -1,27 +1,35 @@
-name: VM 16GB Tailscale
+name: VM 16GB com VNC e Tailscale
 on: 
   workflow_dispatch:
 
 jobs:
-  start-vm:
-    runs-on: ubuntu-latest
+  desktop-vm:
+    runs-on: ubuntu-latest # 16GB de RAM se o repo for público
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configurar Usuario e Senha
+      - name: Instalar Desktop e VNC
         run: |
-          echo "runner:suasenha123" | sudo chpasswd
-          # Isso garante que o SSH aceite login por senha
-          sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
-          sudo systemctl restart ssh
+          sudo apt update
+          # Instala XFCE4 (leve) e o servidor VNC
+          sudo apt install -y xfce4 xfce4-goodies tightvncserver
+          
+          # Configura a senha do VNC (substitua '123456')
+          mkdir -p ~/.vnc
+          echo "123456" | vncpasswd -f > ~/.vnc/passwd
+          chmod 600 ~/.vnc/passwd
+          
+          # Inicia o servidor na porta 5901
+          vncserver :1 -geometry 1280x720 -depth 24
 
       - name: Conectar ao Tailscale
         uses: tailscale/github-action@v2
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
-      - name: Manter VM Ativa
+      - name: Manter Ativa
         run: |
-          echo "Conecte via: ssh runner@$(tailscale ip -4)"
+          echo "VNC rodando no IP: $(tailscale ip -4):5901"
+          echo "Senha: 123456"
           while true; do sleep 60; done
