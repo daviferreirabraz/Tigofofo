@@ -1,34 +1,52 @@
-name: Windows 14GB - Windows App Fixed
+name: Windows Download PC - 150GB Free
 on: workflow_dispatch
+
 jobs:
   build:
     runs-on: windows-latest
     steps:
-      - name: Ligar Rede (Tailscale)
+      - name: 1. Limpeza Profunda (Libertar +100GB)
+        shell: powershell
+        run: |
+          Write-Host "A libertar espaço no disco... Por favor, aguarda."
+          # Remove Android SDK e NDK (Ganha ~40GB)
+          Remove-Item -Recurse -Force "C:\Microsoft\AndroidNDK" -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force "C:\Microsoft\AndroidSDK" -ErrorAction SilentlyContinue
+          # Remove ferramentas de cache e linguagens (Ganha ~60GB)
+          Remove-Item -Recurse -Force "C:\hostedtoolcache\windows" -ErrorAction SilentlyContinue
+          # Remove .NET e pacotes pesados
+          Remove-Item -Recurse -Force "C:\Program Files\dotnet" -ErrorAction SilentlyContinue
+          Write-Host "Espaço livre após limpeza:"
+          Get-PSDrive C | Select-Object @{Name="Livre(GB)";Expression={"{0:N2}" -f ($_.Free/1GB)}}
+
+      - name: 2. Instalar Tailscale (Rede para Windows App)
         shell: powershell
         run: |
           $url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe"
           Invoke-WebRequest -Uri $url -OutFile "ts.exe"
           Start-Process -FilePath ".\ts.exe" -ArgumentList "/S" -Wait
+          # Lembra-te de configurar o segredo TAILSCALE_AUTHKEY no GitHub
           & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --accept-routes
 
-      - name: Criar Usuario e Liberar RDP
+      - name: 3. Configurar Windows App (RDP)
         shell: powershell
         run: |
-          net user runneradmin Suasenha123! /add
+          net user runneradmin Baixar100gb! /add
           net localgroup Administrators runneradmin /add
-          # Garante que o Windows App consiga entrar
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-      - name: Baixar Arquivos (Dropbox)
+      - name: 4. Instalar Chrome e 7-Zip
         shell: powershell
         run: |
-          Invoke-WebRequest -Uri "https://www.dropbox.com/scl/fi/7eiczvgil84czu55dxep3/Downloads.bat?rlkey=wzdc1wxjsph2b7r0atplmdz3p&dl=1" -OutFile "Downloads.bat"
-          cmd /c Downloads.bat
+          Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+          choco install googlechrome 7zip -y
 
-      - name: Manter Ativo
+      - name: 5. Manter Ativo
         shell: powershell
         run: |
+          Write-Host "--- PC PRONTO COM ESPAÇO LIBERADO ---"
+          Write-Host "Utilizador: runneradmin"
+          Write-Host "Palavra-passe: Baixar100gb!"
           while($true) { Start-Sleep -Seconds 60 }
