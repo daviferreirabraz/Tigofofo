@@ -1,26 +1,29 @@
-name: VM 16GB com VNC e Tailscale
+name: VM 16GB Grafica VNC
 on: 
   workflow_dispatch:
 
 jobs:
-  desktop-vm:
-    runs-on: ubuntu-latest # 16GB de RAM se o repo for público
+  start-vnc:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Instalar Desktop e VNC
+      - name: Instalar Interface Grafica e VNC
         run: |
           sudo apt update
-          # Instala XFCE4 (leve) e o servidor VNC
+          # Instala o desktop e o servidor VNC
           sudo apt install -y xfce4 xfce4-goodies tightvncserver
           
-          # Configura a senha do VNC (substitua '123456')
+          # Configura a senha do VNC (será '123456')
           mkdir -p ~/.vnc
           echo "123456" | vncpasswd -f > ~/.vnc/passwd
           chmod 600 ~/.vnc/passwd
           
-          # Inicia o servidor na porta 5901
+          # Configura a senha do usuario runner (para SSH se precisar)
+          echo "runner:123456" | sudo chpasswd
+          
+          # Inicia o servidor VNC na porta 5901
           vncserver :1 -geometry 1280x720 -depth 24
 
       - name: Conectar ao Tailscale
@@ -30,6 +33,7 @@ jobs:
 
       - name: Manter Ativa
         run: |
-          echo "VNC rodando no IP: $(tailscale ip -4):5901"
+          echo "IP da VM: $(tailscale ip -4)"
+          echo "Conecte no VNC Viewer usando: IP:1"
           echo "Senha: 123456"
           while true; do sleep 60; done
