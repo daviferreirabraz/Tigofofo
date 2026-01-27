@@ -1,4 +1,4 @@
-name: Windows_RDP_Fixed
+name: Windows_RDP_Final
 on: workflow_dispatch
 
 jobs:
@@ -7,45 +7,44 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Liberar espaço no Disco C
+      - name: 1. Liberar muito espaço no Disco C
         shell: pwsh
         run: |
+          # Remove arquivos pesados para ganhar ~30GB
           rm -Recurse -Force "C:\Microsoft\AndroidNDK" -ErrorAction SilentlyContinue
           rm -Recurse -Force "C:\Microsoft\AndroidSDK" -ErrorAction SilentlyContinue
           rm -Recurse -Force "C:\hostedtoolcache\windows\CodeQL" -ErrorAction SilentlyContinue
+          Write-Host "Espaço livre disponível:"
           Get-PSDrive C | Select-Object Size, Free
 
-      - name: Baixar Ngrok via Chocolatey
-        # Usar o Chocolatey (gerenciador de pacotes) é mais confiável que baixar o zip manual
+      - name: 2. Instalar Ngrok via Sistema
+        # O Chocolatey evita o erro de "arquivo não encontrado"
         run: choco install ngrok -y
 
-      - name: Autenticar Ngrok
-        run: ngrok authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
-
-      - name: Configurar Usuário e Senha
+      - name: 3. Configurar Usuário e Senha
         run: |
-          net user runneradmin "SenhaForte789!" /add
+          net user runneradmin "SenhaForte123!" /add
           net localgroup administrators runneradmin /add
 
-      - name: Ativar RDP
+      - name: 4. Ativar RDP
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
 
-      - name: Abrir Túnel e Mostrar IP
+      - name: 5. Autenticar e Ligar IP
         shell: pwsh
         run: |
-          # Inicia o ngrok em segundo plano
+          # Aqui ele usa o Secret que você criou nas configurações
+          ngrok authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
           Start-Process ngrok -ArgumentList "tcp 3389"
           Start-Sleep -Seconds 15
-          # Busca o IP gerado
           $tunnels = Invoke-RestMethod -Uri http://localhost:4040/api/tunnels
           $address = $tunnels.tunnels.public_url
           Write-Host "------------------------------------------"
-          Write-Host "CONECTE NO RDP USANDO ESTE ENDEREÇO:"
-          Write-Host $address
+          Write-Host "IP PARA CONECTAR: $address"
+          Write-Host "USUÁRIO: runneradmin"
+          Write-Host "SENHA: SenhaForte123!"
           Write-Host "------------------------------------------"
 
-      - name: Manter Ligada
+      - name: 6. Manter Máquina Viva
         run: Start-Sleep -Seconds 21600
