@@ -1,24 +1,27 @@
-name: PC Windows 16GB
-on: workflow_dispatch
+name: VM 16GB Tailscale
+on: 
+  workflow_dispatch:
+
 jobs:
-  build:
-    runs-on: windows-latest
+  start-vm:
+    runs-on: ubuntu-latest
     steps:
-      - name: Ligar Tailscale
-        shell: powershell
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Usuario e Senha
         run: |
-          iex ((New-Object System.Net.WebClient).DownloadString('https://tailscale.com/install.ps1'))
-          tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --accept-routes
-      - name: Criar Usuario PC
-        shell: powershell
+          echo "runner:suasenha123" | sudo chpasswd
+          # Isso garante que o SSH aceite login por senha
+          sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sudo systemctl restart ssh
+
+      - name: Conectar ao Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+
+      - name: Manter VM Ativa
         run: |
-          $pass = ConvertTo-SecureString "Suasenha123!" -AsPlainText -Force
-          New-LocalUser "runneradmin" -Password $pass -Description "PC User"
-          Add-LocalGroupMember -Group "Administrators" -Member "runneradmin"
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "runneradmin"
-      - name: Manter Ativo
-        shell: powershell
-        run: |
-          echo "Conecte no Windows App com o IP do Tailscale"
-          echo "User: runneradmin | Senha: Suasenha123!"
-          while($true) { Start-Sleep -Seconds 60 }
+          echo "Conecte via: ssh runner@$(tailscale ip -4)"
+          while true; do sleep 60; done
