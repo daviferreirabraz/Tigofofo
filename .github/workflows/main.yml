@@ -1,55 +1,39 @@
-name: Windows Download PC - 150GB Free
+name: Windows 150GB - Direto ao Ponto
 on: workflow_dispatch
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
-      - name: 1. Limpeza Atômica (Liberar +150GB)
+      - name: Limpeza Rapida e Rede
         shell: powershell
         run: |
-          Write-Host "Iniciando limpeza pesada... Aguarde alguns minutos."
-          # Remove Visual Studio (O maior vilão, ~50-70GB)
-          Remove-Item -Recurse -Force "C:\Program Files\Microsoft Visual Studio" -ErrorAction SilentlyContinue
-          Remove-Item -Recurse -Force "C:\Program Files (x86)\Microsoft Visual Studio" -ErrorAction SilentlyContinue
+          # Limpa tudo em segundo plano para ir mais rapido
+          $folders = @("C:\Program Files\Microsoft Visual Studio", "C:\Microsoft\AndroidSDK", "C:\hostedtoolcache\windows")
+          foreach ($f in $folders) { if (Test-Path $f) { cmd /c "rd /s /q $f" } }
           
-          # Remove Android SDK/NDK (~40GB)
-          Remove-Item -Recurse -Force "C:\Microsoft\AndroidNDK" -ErrorAction SilentlyContinue
-          Remove-Item -Recurse -Force "C:\Microsoft\AndroidSDK" -ErrorAction SilentlyContinue
-          
-          # Remove Caches e Ferramentas (~60GB)
-          Remove-Item -Recurse -Force "C:\hostedtoolcache\windows" -ErrorAction SilentlyContinue
-          Remove-Item -Recurse -Force "C:\Program Files\dotnet" -ErrorAction SilentlyContinue
-          
-          Write-Host "Espaço Livre Final:"
-          $drive = Get-PSDrive C
-          $freeGB = [math]::Round($drive.Free / 1GB, 2)
-          Write-Host "$freeGB GB disponíveis."
-
-      - name: 2. Instalar Tailscale
-        shell: powershell
-        run: |
+          # Baixa e liga o Tailscale
           $url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe"
           Invoke-WebRequest -Uri $url -OutFile "ts.exe"
           Start-Process -FilePath ".\ts.exe" -ArgumentList "/S" -Wait
           & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --accept-routes
 
-      - name: 3. Configurar Windows App (RDP)
+      - name: Configurar Acesso Windows App
         shell: powershell
         run: |
-          net user runneradmin Baixar100gb! /add
-          net localgroup Administrators runneradmin /add
+          $user = "vovo105"
+          $pass = "SenhaForte123!"
+          net user $user $pass /add
+          net localgroup Administrators $user /add
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-      - name: 4. Instalar Chrome e 7-Zip
+      - name: Instalar Chrome e Manter Online
         shell: powershell
         run: |
           Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-          choco install googlechrome 7zip -y
-
-      - name: 5. Manter Ativo
-        shell: powershell
-        run: |
+          choco install googlechrome -y
+          Write-Host "--- PC PRONTO! ---"
+          Write-Host "Usuario: vovo105 | Senha: SenhaForte123!"
           while($true) { Start-Sleep -Seconds 60 }
