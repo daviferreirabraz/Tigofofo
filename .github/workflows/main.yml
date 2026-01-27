@@ -1,36 +1,33 @@
-name: VM 16GB Tailscale SSH
+name: VM 16GB Tailscale com Senha
 on: 
-  workflow_dispatch: # Botão manual para iniciar
+  workflow_dispatch:
 
 jobs:
   start-vm:
-    # Em repositórios PÚBLICOS, o ubuntu-latest tem 4 cores e ~16GB RAM.
-    # Em PRIVADOS, tem apenas 2 cores e 7GB RAM.
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Passo extra só para você confirmar no log que tem 16GB
-      - name: Verificar Memória RAM
+      - name: Configurar Usuario e Senha
         run: |
-          echo "Verificando hardware..."
-          grep MemTotal /proc/meminfo
-          free -h
+          # Define a senha para o usuário 'runner'
+          # Substitua 'suasenha123' pela senha que você desejar
+          echo "runner:suasenha123" | sudo chpasswd
+          echo "Senha configurada com sucesso!"
 
       - name: Conectar ao Tailscale
         uses: tailscale/github-action@v2
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          # O argumento --ssh é essencial para você conseguir entrar na máquina
-          args: --ssh 
-          # Se você criou a chave com tag, adicione a linha abaixo (remova o #):
-          # version: latest
+          # Removi o --ssh para usarmos a senha padrão do sistema
+          args: --accept-dns=false
 
-      - name: Manter VM Ativa (Loop)
-        timeout-minutes: 360 # Mantém ligado por até 6 horas
+      - name: Manter VM Ativa
+        timeout-minutes: 360
         run: |
-          echo "VM rodando com 16GB! Conecte-se via: ssh runner@<ip-do-tailscale>"
-          # Este loop mantém o processo rodando para o GitHub não matar a VM
+          echo "VM PRONTA!"
+          echo "Usuario: runner"
+          echo "Senha: suasenha123"
           while true; do sleep 30; done
