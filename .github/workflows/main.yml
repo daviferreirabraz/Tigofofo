@@ -1,28 +1,36 @@
-name: VM 16GB com Tailscale
+name: VM 16GB Tailscale SSH
 on: 
-  workflow_dispatch: # Permite rodar manualmente
+  workflow_dispatch: # Botão manual para iniciar
 
 jobs:
-  setup_vm:
-    # 'ubuntu-latest' em repositórios públicos geralmente fornece 16GB de RAM
-    runs-on: ubuntu-latest 
-
+  start-vm:
+    # Em repositórios PÚBLICOS, o ubuntu-latest tem 4 cores e ~16GB RAM.
+    # Em PRIVADOS, tem apenas 2 cores e 7GB RAM.
+    runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check RAM
-        run: free -h # Comando para confirmar se você tem os 16GB disponíveis
+      # Passo extra só para você confirmar no log que tem 16GB
+      - name: Verificar Memória RAM
+        run: |
+          echo "Verificando hardware..."
+          grep MemTotal /proc/meminfo
+          free -h
 
       - name: Conectar ao Tailscale
-        uses: tailscale/github-action@v4
+        uses: tailscale/github-action@v2
         with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci # Certifique-se de que esta tag existe no seu Tailscale ACL
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          # O argumento --ssh é essencial para você conseguir entrar na máquina
+          args: --ssh 
+          # Se você criou a chave com tag, adicione a linha abaixo (remova o #):
+          # version: latest
 
-      - name: Manter VM Viva
-        # Este passo impede que a VM feche imediatamente, permitindo que você acesse via SSH
+      - name: Manter VM Ativa (Loop)
+        timeout-minutes: 360 # Mantém ligado por até 6 horas
         run: |
-          echo "VM conectada ao Tailscale! Acesse via SSH usando o IP do Tailscale."
-          sleep 3600 # Mantém a VM ligada por 1 hora (ajuste conforme necessário)
+          echo "VM rodando com 16GB! Conecte-se via: ssh runner@<ip-do-tailscale>"
+          # Este loop mantém o processo rodando para o GitHub não matar a VM
+          while true; do sleep 30; done
