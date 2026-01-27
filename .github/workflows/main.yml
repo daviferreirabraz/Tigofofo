@@ -1,33 +1,27 @@
-name: VM 16GB Tailscale com Senha
+name: VM 16GB Tailscale
 on: 
   workflow_dispatch:
 
 jobs:
   start-vm:
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Configurar Usuario e Senha
         run: |
-          # Define a senha para o usuário 'runner'
-          # Substitua 'suasenha123' pela senha que você desejar
           echo "runner:suasenha123" | sudo chpasswd
-          echo "Senha configurada com sucesso!"
+          # Isso garante que o SSH aceite login por senha
+          sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sudo systemctl restart ssh
 
       - name: Conectar ao Tailscale
         uses: tailscale/github-action@v2
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          # Removi o --ssh para usarmos a senha padrão do sistema
-          args: --accept-dns=false
 
       - name: Manter VM Ativa
-        timeout-minutes: 360
         run: |
-          echo "VM PRONTA!"
-          echo "Usuario: runner"
-          echo "Senha: suasenha123"
-          while true; do sleep 30; done
+          echo "Conecte via: ssh runner@$(tailscale ip -4)"
+          while true; do sleep 60; done
