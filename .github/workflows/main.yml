@@ -1,39 +1,51 @@
-name: Windows 150GB - Direto ao Ponto
+name: Windows_RDP_Fixed
 on: workflow_dispatch
 
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 360
+
     steps:
-      - name: Limpeza Rapida e Rede
-        shell: powershell
+      - name: Liberar espaço no Disco C
+        shell: pwsh
         run: |
-          # Limpa tudo em segundo plano para ir mais rapido
-          $folders = @("C:\Program Files\Microsoft Visual Studio", "C:\Microsoft\AndroidSDK", "C:\hostedtoolcache\windows")
-          foreach ($f in $folders) { if (Test-Path $f) { cmd /c "rd /s /q $f" } }
-          
-          # Baixa e liga o Tailscale
-          $url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe"
-          Invoke-WebRequest -Uri $url -OutFile "ts.exe"
-          Start-Process -FilePath ".\ts.exe" -ArgumentList "/S" -Wait
-          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --accept-routes
+          rm -Recurse -Force "C:\Microsoft\AndroidNDK" -ErrorAction SilentlyContinue
+          rm -Recurse -Force "C:\Microsoft\AndroidSDK" -ErrorAction SilentlyContinue
+          rm -Recurse -Force "C:\hostedtoolcache\windows\CodeQL" -ErrorAction SilentlyContinue
+          Get-PSDrive C | Select-Object Size, Free
 
-      - name: Configurar Acesso Windows App
-        shell: powershell
+      - name: Baixar Ngrok via Chocolatey
+        # Usar o Chocolatey (gerenciador de pacotes) é mais confiável que baixar o zip manual
+        run: choco install ngrok -y
+
+      - name: Autenticar Ngrok
+        run: ngrok authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+
+      - name: Configurar Usuário e Senha
         run: |
-          $user = "vovo105"
-          $pass = "SenhaForte123!"
-          net user $user $pass /add
-          net localgroup Administrators $user /add
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
+          net user runneradmin "SenhaForte789!" /add
+          net localgroup administrators runneradmin /add
+
+      - name: Ativar RDP
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
 
-      - name: Instalar Chrome e Manter Online
-        shell: powershell
+      - name: Abrir Túnel e Mostrar IP
+        shell: pwsh
         run: |
-          Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-          choco install googlechrome -y
-          Write-Host "--- PC PRONTO! ---"
-          Write-Host "Usuario: vovo105 | Senha: SenhaForte123!"
-          while($true) { Start-Sleep -Seconds 60 }
+          # Inicia o ngrok em segundo plano
+          Start-Process ngrok -ArgumentList "tcp 3389"
+          Start-Sleep -Seconds 15
+          # Busca o IP gerado
+          $tunnels = Invoke-RestMethod -Uri http://localhost:4040/api/tunnels
+          $address = $tunnels.tunnels.public_url
+          Write-Host "------------------------------------------"
+          Write-Host "CONECTE NO RDP USANDO ESTE ENDEREÇO:"
+          Write-Host $address
+          Write-Host "------------------------------------------"
+
+      - name: Manter Ligada
+        run: Start-Sleep -Seconds 21600
