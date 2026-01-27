@@ -1,51 +1,55 @@
-name: Windows Cloud PC - Anydesk (Optimized)
+name: Windows Cloud PC - 14GB (Windows App Ready)
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    name: Start Building...
+    name: Configurando PC de 14GB
     runs-on: windows-latest
-    timeout-minutes: 10080  # MÃ¡ximo de 7 dias para evitar tempo de execuÃ§Ã£o excessivo
+    timeout-minutes: 360 # O GitHub Actions gratuito para após 6 horas (360 min)
 
     steps:
-      - name: Downloading & Installing Essentials
+      - name: 1. Instalar Tailscale (Rede)
+        shell: powershell
         run: |
-          # Baixa o arquivo .bat para instalar componentes essenciais
+          # Baixa e instala o Tailscale para gerar o IP de conexão
+          $url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe"
+          Invoke-WebRequest -Uri $url -OutFile "ts.exe"
+          Start-Process -FilePath ".\ts.exe" -ArgumentList "/S" -Wait
+          # Conecta usando sua chave (Certifique-se que ela é válida)
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --accept-routes
+
+      - name: 2. Configurar Usuário e RDP (Para Windows App)
+        shell: powershell
+        run: |
+          # Define o usuário e a senha que você usará no celular
+          $user = "runneradmin"
+          $pass = "Suasenha123!"
+          net user $user $pass /add
+          net localgroup Administrators $user /add
+          
+          # Habilita a Área de Trabalho Remota (Protocolo do Windows App)
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          
+          # Desativa NLA para facilitar a conexão mobile
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
+
+      - name: 3. Baixar Seus Essenciais (Dropbox)
+        shell: powershell
+        run: |
+          # Baixa o seu arquivo .bat original
           Invoke-WebRequest -Uri "https://www.dropbox.com/scl/fi/7eiczvgil84czu55dxep3/Downloads.bat?rlkey=wzdc1wxjsph2b7r0atplmdz3p&dl=1" -OutFile "Downloads.bat"
-          # Executa o script .bat para instalar os componentes
+          # Executa a instalação dos seus programas
           cmd /c Downloads.bat
 
-      - name: Log In To AnyDesk
+      - name: 4. Manter PC Online
+        shell: powershell
         run: |
-          # Verifica se o arquivo start.bat existe antes de executar
-          if (Test-Path "start.bat") {
-            cmd /c start.bat
-          } else {
-            Write-Host "Arquivo start.bat nÃ£o encontrado. Verifique a configuraÃ§Ã£o."
-          }
-
-      - name: Monitor and Restart AnyDesk if Needed
-        run: |
-          # Monitora a conexÃ£o do AnyDesk e reinicia se necessÃ¡rio
-          while ($true) {
-            $process = Get-Process -Name "AnyDesk" -ErrorAction SilentlyContinue
-            if (-not $process) {
-              Write-Host "AnyDesk nÃ£o estÃ¡ rodando, reiniciando..."
-              cmd /c start.bat
-            }
-            Start-Sleep -Seconds 300  # Verifica a cada 5 minutos
-          }
-
-      - name: Time Counter (Long Running Task)
-        run: |
-          # Configura para manter a mÃ¡quina em execuÃ§Ã£o
-          Start-Sleep -Seconds 604800  # 7 dias de execuÃ§Ã£o contÃ­nua
-
-      - name: Clean Up Temporary Files
-        if: success()  # Executa esta etapa apenas se todas as etapas anteriores forem bem-sucedidas
-        run: |
-          # Remove arquivos temporÃ¡rios ou logs gerados
-          Remove-Item Downloads.bat -Force
-          Write-Host "Limpeza completa."
+          Write-Host "--- PC PRONTO PARA CONECTAR ---"
+          Write-Host "Use o IP do Tailscale no Windows App"
+          Write-Host "Usuário: runneradmin"
+          Write-Host "Senha: Suasenha123!"
+          # Mantém a VM viva
+          while($true) { Start-Sleep -Seconds 60 }
